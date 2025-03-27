@@ -1,0 +1,314 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Roblox DOORS (Fisch-Style)</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: 'Arial Rounded MT Bold', 'Arial', sans-serif;
+            background-color: #0a0a12;
+            color: white;
+            overflow: hidden;
+            user-select: none;
+        }
+        
+        #game-container {
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+            background: linear-gradient(rgba(0, 0, 0, 0.7), rgba(0, 0, 0, 0.7)), url('https://tr.rbxcdn.com/5d8b5c8a5b5b5b5b5b5b5b5b5b5b5b5b/420/420/Image/Png');
+            background-size: cover;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        #game-ui {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            background: rgba(0, 0, 0, 0.5);
+            padding: 10px 20px;
+            border-radius: 10px;
+            border: 2px solid #ff4444;
+            font-size: 20px;
+            z-index: 100;
+        }
+        
+        #player {
+            position: absolute;
+            width: 50px;
+            height: 50px;
+            background-color: #3498db;
+            border-radius: 50%;
+            transition: transform 0.1s;
+            z-index: 10;
+        }
+        
+        .door {
+            position: absolute;
+            width: 60px;
+            height: 100px;
+            background: linear-gradient(to bottom, #8B4513, #5D2906);
+            border: 3px solid #000;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            color: gold;
+            font-weight: bold;
+            cursor: pointer;
+            z-index: 20;
+        }
+        
+        #seek {
+            position: absolute;
+            width: 80px;
+            height: 80px;
+            background-color: #000;
+            border-radius: 50%;
+            z-index: 5;
+            display: none;
+        }
+        
+        /* Seek's Glowing Eyes */
+        .seek-eye {
+            position: absolute;
+            width: 15px;
+            height: 15px;
+            background-color: #ff0000;
+            border-radius: 50%;
+            filter: drop-shadow(0 0 5px #ff0000);
+        }
+        
+        #left-eye {
+            top: 30px;
+            left: 20px;
+        }
+        
+        #right-eye {
+            top: 30px;
+            right: 20px;
+        }
+        
+        #start-screen {
+            text-align: center;
+            z-index: 100;
+        }
+        
+        #start-button {
+            background: linear-gradient(to bottom, #ff3c00, #ff0062);
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            font-size: 20px;
+            font-weight: bold;
+            border-radius: 10px;
+            cursor: pointer;
+            box-shadow: 0 5px 0 #8a0022;
+            margin-top: 20px;
+        }
+        
+        #game-over {
+            display: none;
+            text-align: center;
+            z-index: 100;
+        }
+        
+        #restart-button {
+            background: linear-gradient(to bottom, #00ff88, #00b3ff);
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            font-size: 20px;
+            font-weight: bold;
+            border-radius: 10px;
+            cursor: pointer;
+            box-shadow: 0 5px 0 #00663d;
+            margin-top: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div id="game-container">
+        <div id="game-ui">
+            Coins: <span id="coin-count">0</span> | Doors: <span id="door-count">0</span>
+        </div>
+        
+        <div id="start-screen">
+            <h1 style="font-size: 40px; text-shadow: 3px 3px 0 #000;">ROBLOX DOORS</h1>
+            <p style="font-size: 20px;">Collect coins before Seek finds you!</p>
+            <button id="start-button">START GAME</button>
+        </div>
+        
+        <div id="game-over" style="display: none;">
+            <h1 style="font-size: 40px; color: #ff4444; text-shadow: 3px 3px 0 #000;">GAME OVER!</h1>
+            <p style="font-size: 24px;">You collected <span id="final-coins">0</span> coins!</p>
+            <button id="restart-button">PLAY AGAIN</button>
+        </div>
+        
+        <div id="player"></div>
+        <div id="seek">
+            <div class="seek-eye" id="left-eye"></div>
+            <div class="seek-eye" id="right-eye"></div>
+        </div>
+    </div>
+
+    <script>
+        // Game Variables
+        let coins = 0;
+        let doorsOpened = 0;
+        let gameRunning = false;
+        let seekInterval;
+        
+        // DOM Elements
+        const gameContainer = document.getElementById("game-container");
+        const player = document.getElementById("player");
+        const seek = document.getElementById("seek");
+        const coinCount = document.getElementById("coin-count");
+        const doorCount = document.getElementById("door-count");
+        const startScreen = document.getElementById("start-screen");
+        const gameOverScreen = document.getElementById("game-over");
+        const finalCoins = document.getElementById("final-coins");
+        const startButton = document.getElementById("start-button");
+        const restartButton = document.getElementById("restart-button");
+        
+        // Start Game
+        startButton.addEventListener("click", startGame);
+        restartButton.addEventListener("click", startGame);
+        
+        function startGame() {
+            coins = 0;
+            doorsOpened = 0;
+            gameRunning = true;
+            
+            coinCount.textContent = "0";
+            doorCount.textContent = "0";
+            
+            startScreen.style.display = "none";
+            gameOverScreen.style.display = "none";
+            seek.style.display = "none";
+            
+            // Position player in center
+            player.style.left = "50%";
+            player.style.top = "50%";
+            player.style.transform = "translate(-50%, -50%)";
+            
+            // Create doors
+            createDoors();
+            
+            // Start Seek after 5 seconds
+            setTimeout(() => {
+                if (gameRunning) {
+                    seek.style.display = "block";
+                    // Position Seek randomly at the edge
+                    const side = Math.floor(Math.random() * 4);
+                    if (side === 0) { // Top
+                        seek.style.left = `${Math.random() * window.innerWidth}px`;
+                        seek.style.top = "-80px";
+                    } else if (side === 1) { // Right
+                        seek.style.left = `${window.innerWidth + 80}px`;
+                        seek.style.top = `${Math.random() * window.innerHeight}px`;
+                    } else if (side === 2) { // Bottom
+                        seek.style.left = `${Math.random() * window.innerWidth}px`;
+                        seek.style.top = `${window.innerHeight + 80}px`;
+                    } else { // Left
+                        seek.style.left = "-80px";
+                        seek.style.top = `${Math.random() * window.innerHeight}px`;
+                    }
+                    moveSeek();
+                }
+            }, 5000);
+        }
+        
+        function createDoors() {
+            // Remove old doors
+            document.querySelectorAll(".door").forEach(door => door.remove());
+            
+            // Create 3-5 random doors
+            const doorCount = Math.floor(Math.random() * 3) + 3;
+            for (let i = 0; i < doorCount; i++) {
+                const door = document.createElement("div");
+                door.className = "door";
+                door.textContent = "🚪";
+                
+                // Random position (not too close to edges)
+                const x = Math.random() * (window.innerWidth - 100) + 50;
+                const y = Math.random() * (window.innerHeight - 150) + 50;
+                door.style.left = `${x}px`;
+                door.style.top = `${y}px`;
+                
+                // Click event to "open" door
+                door.addEventListener("click", () => {
+                    if (gameRunning) {
+                        doorsOpened++;
+                        doorCount.textContent = doorsOpened;
+                        
+                        // Add coins (1-5)
+                        const coinReward = Math.floor(Math.random() * 5) + 1;
+                        coins += coinReward;
+                        coinCount.textContent = coins;
+                        
+                        // Remove door
+                        door.remove();
+                        
+                        // Create new door if all are gone
+                        if (document.querySelectorAll(".door").length === 0) {
+                            createDoors();
+                        }
+                    }
+                });
+                
+                gameContainer.appendChild(door);
+            }
+        }
+        
+        function moveSeek() {
+            if (!gameRunning) return;
+            
+            // Move Seek toward player
+            const playerRect = player.getBoundingClientRect();
+            const seekRect = seek.getBoundingClientRect();
+            
+            const dx = playerRect.left - seekRect.left;
+            const dy = playerRect.top - seekRect.top;
+            const distance = Math.sqrt(dx * dx + dy * dy);
+            
+            // Normalize direction
+            const vx = (dx / distance) * 5;
+            const vy = (dy / distance) * 5;
+            
+            seek.style.left = `${seekRect.left + vx}px`;
+            seek.style.top = `${seekRect.top + vy}px`;
+            
+            // Check collision
+            if (distance < 50) {
+                endGame();
+                return;
+            }
+            
+            // Continue moving
+            seekInterval = requestAnimationFrame(moveSeek);
+        }
+        
+        function endGame() {
+            gameRunning = false;
+            cancelAnimationFrame(seekInterval);
+            
+            finalCoins.textContent = coins;
+            gameOverScreen.style.display = "block";
+        }
+        
+        // Player movement
+        document.addEventListener("mousemove", (e) => {
+            if (gameRunning) {
+                player.style.left = `${e.clientX}px`;
+                player.style.top = `${e.clientY}px`;
+            }
+        });
+    </script>
+</body>
+</html>
